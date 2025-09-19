@@ -1,15 +1,16 @@
 # -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:ft=tcl:et:sw=4:ts=4:sts=4
 
 PortSystem                      1.0
+PortGroup                       active_variants 1.1
 PortGroup                       clang_dependency 1.0
 
 # Increase the revision of p5-www-curl whenever the version of curl gets updated.
 
 name                            curl
-version                         8.13.0
-checksums                       rmd160  9d259af2206988c36e548394b8bbf26fdada0ca2 \
-                                sha256  4a093979a3c2d02de2fbc00549a32771007f2e78032c6faa5ecd2f7a9e152025 \
-                                size    2773628
+version                         8.16.0
+checksums                       rmd160  36549161d62924b42b77fca36386ed7118b38a71 \
+                                sha256  40c8cddbcb6cc6251c03dea423a472a6cea4037be654ba5cf5dec6eb2d22ff1d \
+                                size    2788632
 
 categories                      net www
 platforms                       darwin freebsd
@@ -170,6 +171,10 @@ if {${name} eq ${subport}} {
         configure.args-delete   --without-ssl
         configure.args-replace  --without-gnutls --with-gnutls
         configure.args-append   --with-ca-bundle=${prefix}/share/curl/curl-ca-bundle.crt
+
+        if {[variant_isset http3]} {
+            require_active_variants path:lib/pkgconfig/libngtcp2_crypto_gnutls.pc:ngtcp2 gnutls
+        }
     }
 
     variant mbedtls conflicts darwinssl gnutls ssl wolfssl description {Allow secure connections using mbed TLS (formerly PolarSSL)} {
@@ -186,6 +191,10 @@ if {${name} eq ${subport}} {
         configure.args-delete   --without-ssl
         configure.args-replace  --without-wolfssl --with-wolfssl
         configure.args-append   --with-ca-bundle=${prefix}/share/curl/curl-ca-bundle.crt
+
+        if {[variant_isset http3]} {
+            require_active_variants path:lib/pkgconfig/libngtcp2_crypto_wolfssl.pc:ngtcp2 wolfssl
+        }
     }
 
     variant gsasl description {Support SCRAM-SHA-1 and SCRAM-SHA-256 with libgsasl} {
@@ -204,9 +213,8 @@ if {${name} eq ${subport}} {
         configure.args-replace  --without-nghttp2 --with-nghttp2=${prefix}
     }
 
-    variant http3 requires gnutls description {Support HTTP/3 with nghttp3 and ngtcp2} {
-        depends_lib-append      port:nghttp3 \
-                                port:ngtcp2
+    variant http3 description {Support HTTP/3 with nghttp3 and ngtcp2} {
+        depends_lib-append      port:nghttp3
         configure.args-replace  --without-nghttp3 --with-nghttp3=${prefix} \
                                 --without-ngtcp2 --with-ngtcp2=${prefix}
     }
@@ -245,6 +253,10 @@ if {${name} eq ${subport}} {
         configure.args-delete   --without-ssl
         configure.args-replace  --without-openssl --with-openssl
         configure.args-append   --with-ca-bundle=${prefix}/share/curl/curl-ca-bundle.crt
+
+        if {[variant_isset http3]} {
+            require_active_variants path:lib/pkgconfig/libngtcp2_crypto_ossl.pc:ngtcp2 openssl
+        }
     }
 
     variant zstd description {Support zstd compression} {
@@ -253,6 +265,16 @@ if {${name} eq ${subport}} {
     }
 
     default_variants +brotli +http2 +idn +psl +zstd
+
+    if {[variant_isset http3]} {
+        if {[catch {active_variants ngtcp2 wolfssl} result] || $result} {
+            default_variants-append +wolfssl
+        } elseif {[catch {active_variants ngtcp2 openssl} result] || $result} {
+            default_variants-append +ssl
+        } else {
+            default_variants-append +gnutls
+        }
+    }
 
     if {![variant_isset darwinssl] && ![variant_isset gnutls] && ![variant_isset mbedtls] && ![variant_isset wolfssl]} {
         default_variants-append +ssl
